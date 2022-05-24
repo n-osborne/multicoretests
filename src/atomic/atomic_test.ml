@@ -70,6 +70,20 @@ struct
     | Incr,            RIncr            -> true
     | Decr,            RDecr            -> true
     | _,_ -> false
+
+  let generators =
+    let int_gen = Gen.nat in
+    (QCheck.make ~print:show_cmd)
+      (Gen.oneof
+         [Gen.return Get;
+          Gen.map (fun i -> Set i) int_gen;
+          Gen.map (fun i -> Exchange i) int_gen;
+          Gen.map (fun i -> Fetch_and_add i) int_gen;
+          Gen.map2 (fun seen v -> Compare_and_set (seen,v)) int_gen int_gen; (* small chances that seen is right *)
+          Gen.return Incr;
+          Gen.return Decr;
+         ])
+
 end
 
 module AT = STM.Make(CConf)

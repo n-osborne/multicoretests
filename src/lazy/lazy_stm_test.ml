@@ -85,6 +85,18 @@ struct
     | Map (Fun (_,f)),     RMap i
     | Map_val (Fun (_,f)), RMap_val i   -> i = f (fst s)
     | _,_ -> false
+
+  let generators =
+    let int' = small_nat in
+    (QCheck.make ~print:show_cmd)
+      (Gen.oneof
+         [Gen.return Force;
+          Gen.return Force_val;
+          Gen.return Is_val;
+          Gen.map (fun f -> Map f)     (fun1 Observable.int int').gen;
+          Gen.map (fun f -> Map_val f) (fun1 Observable.int int').gen;
+      ])
+
 end
 
 

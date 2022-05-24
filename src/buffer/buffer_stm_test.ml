@@ -133,6 +133,24 @@ struct
        then r = Error (Invalid_argument "Buffer.truncate")
        else r = Ok ()
     | _, _ -> false
+
+  let generators =
+    (QCheck.make ~print:show_cmd)
+      (Gen.oneof
+         [Gen.return Contents;
+          Gen.return To_bytes;
+          Gen.map2 (fun off len -> Sub (off, len)) Gen.small_nat Gen.small_nat;
+          Gen.map (fun i -> Nth i) Gen.small_nat;
+          Gen.return Length;
+          Gen.return Clear;
+          Gen.return Reset;
+          Gen.map (fun c -> Add_char c) Gen.char;
+          Gen.map (fun s -> Add_string s) (Gen.string);
+          Gen.map (fun b -> Add_bytes (String.to_bytes b)) (Gen.string);
+          Gen.map (fun i -> Truncate i) Gen.small_nat
+         ])
+  
+
 end
 
 module BufferSTM = STM.Make(BConf)

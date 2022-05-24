@@ -1,4 +1,11 @@
 (test
   (name lin_api)
+   (modules lin_api)
   (package multicorecheck)
   (libraries multicorecheck.lin))
+
+(test
+ (name smart_gen)
+  (modules smart_gen)
+ (package multicorecheck)
+  (libraries qcheck STM))

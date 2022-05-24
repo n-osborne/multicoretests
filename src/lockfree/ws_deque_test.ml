@@ -67,6 +67,16 @@ struct
                                (match s with | [] -> res = Error Exit | j::_ -> res = Ok j)
     | Steal,    RSteal res  -> (match List.rev s with | [] -> Result.is_error res | j::_ -> res = Ok j)
     | _,_ -> false
+
+  let generators =
+    let int_gen = Gen.nat in
+    (QCheck.make ~print:show_cmd)
+      (Gen.oneof
+         [Gen.map (fun i -> Push i) int_gen;
+          Gen.return Pop;
+          (*Gen.return Steal;*) (* No point in stealing from yourself :-D *)
+      ])
+
 end
 
 module WSDT = STM.Make(WSDConf)

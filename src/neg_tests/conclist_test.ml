@@ -43,6 +43,14 @@ struct
     | Add_node _, RAdd_node v -> v = true
     | Member i,   RMember v   -> v = List.mem i s
     | _,_ -> false
+
+  let generators =
+    let int_gen = Gen.(map T.of_int nat) in
+      (QCheck.make ~print:show_cmd)
+        (Gen.oneof
+           [ Gen.map (fun i -> Add_node i) int_gen;
+             Gen.map (fun i -> Member i) int_gen (* small chances that i is member of the list *)
+        ])
 end
 
 module Int = struct

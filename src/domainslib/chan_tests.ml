@@ -67,6 +67,16 @@ struct
     | Recv,        RRecv res      -> (match s with [] -> false | res'::_ -> res=res')
     | Recv_poll,   RRecv_poll opt -> (match s with [] -> None | res'::_ -> Some res') = opt
     | _,_ -> false
+
+  let generators =
+    let int_gen = Gen.nat in
+    List.map
+      (QCheck.make ~print:show_cmd)
+      [ Gen.map (fun i -> Send i) int_gen;
+        Gen.map (fun i -> Send_poll i) int_gen;
+        Gen.return Recv;
+        Gen.return Recv_poll
+      ]
 end
 
 

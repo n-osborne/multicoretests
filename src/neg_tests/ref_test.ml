@@ -73,6 +73,17 @@ struct
     | Incr, RIncr -> true
     | Decr, RDecr -> true
     | _,_ -> false
+
+  let generators = 
+    let int_gen = Gen.nat in
+    (QCheck.make ~print:show_cmd)
+      (Gen.oneof
+         [Gen.return Get;
+	  Gen.map (fun i -> Set i) int_gen;
+	  Gen.map (fun i -> Add i) int_gen;
+          Gen.return Incr;
+	  Gen.return Decr;
+         ])
 end
 
 module RConf_int64 =
@@ -126,6 +137,18 @@ struct
     | Incr, RIncr -> true
     | Decr, RDecr -> true
     | _,_ -> false
+
+  let generators =
+    let int64_gen = Gen.(map Int64.of_int nat) in
+    (QCheck.make ~print:show_cmd)
+      (Gen.oneof
+         [Gen.return Get;
+	  Gen.map (fun i -> Set i) int64_gen;
+	  Gen.map (fun i -> Add i) int64_gen;
+          Gen.return Incr;
+	  Gen.return Decr;
+         ])
+
 end
 
 
