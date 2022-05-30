@@ -8,4 +8,5 @@
  (name smart_gen)
   (modules smart_gen)
  (package multicorecheck)
-  (libraries qcheck STM))
+  (libraries qcheck multicorecheck.stm)
+ (preprocess (pps ppx_deriving.show ppx_deriving.eq)))

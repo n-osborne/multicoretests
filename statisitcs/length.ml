@@ -64,32 +64,38 @@ module CounterSpec = struct
 
 module Counter = STM.Make (CounterSpec)
 
-module TestCorrectness = struct
 
-  let prop (seq, p0, p1) =
-      let rec go_seq state = function
-    | [] -> Some state
-    | x :: xs -> (
-        match CounterSpec.precond x state with
-        | false -> None
-        | true ->
-            let state = CounterSpec.next_state x state in
-            go_seq state xs)
-  in
-  let rec go_par state p0 p1 =
-    match (p0, p1) with
-    | [], [] -> true
-    | pg, [] | [], pg -> Option.is_some (go_seq state pg)
-    | x :: xs, y :: ys ->
-        CounterSpec.precond x state && CounterSpec.precond y state
-        && go_par (CounterSpec.next_state x state) xs (y :: ys)
-        && go_par (CounterSpec.next_state y state) (x :: xs) ys
-  in
-  match go_seq CounterSpec.init_state seq with
-  | None -> false
-  | Some spawn_state -> go_par spawn_state p0 p1
+module StatisticsLength = struct
+  let prop stats (_seq, p0, p1) =
+    let i = List.length p0 + List.length p1 in
+    stats.(i) <- stats.(i) + 1;
+    true
 
-  let test = Test.make ~name:"Test output repects preconditions" ~count:1000 (Counter.arb_cmds_par_smart 20 12) prop
- let _ = QCheck_runner.run_tests ~verbose:true [ test ]
+  let par_len = 10
+  let stats_smart = Array.make (2 * par_len + 1) 0
+  let stats_ordinary = Array.make (2 * par_len + 1) 0
+  let prop_smart = prop stats_smart
+  let prop_ordinary = prop stats_ordinary
 
-end
+  let test_smart = Test.make
+                     ~name:"Statistics on concurrent suffixes' length with smart generators"
+                     ~count:1000
+                     (Counter.arb_cmds_par_smart 20 par_len)
+                     prop_smart
+
+  let test_ordinary = Test.make
+                        ~name:"Statistics on concurrent suffixes' length with ordinary generators"
+                        ~count:1000
+                        (Counter.arb_cmds_par 20 par_len)
+                        prop_ordinary
+
+ let _ = QCheck_runner.run_tests ~verbose:false [ test_smart; test_ordinary ]
+ let _ =
+   let data ar = Array.to_list ar |> List.map Int.to_string |> String.concat "," in 
+   let data_smart = "smart," ^ data stats_smart in
+   let data_ordinary = "ordinary," ^ data stats_ordinary in
+   Out_channel.with_open_text "length.data" (fun oc ->
+       Printf.fprintf oc "%s\n%s\n" data_smart data_ordinary)
+   (* Printf.printf "%s\n%s\n" data_smart data_ordinary; *)
+   (* close_out oc *)
+  end

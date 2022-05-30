@@ -64,32 +64,23 @@ module CounterSpec = struct
 
 module Counter = STM.Make (CounterSpec)
 
-module TestCorrectness = struct
+let prop _ = true
 
-  let prop (seq, p0, p1) =
-      let rec go_seq state = function
-    | [] -> Some state
-    | x :: xs -> (
-        match CounterSpec.precond x state with
-        | false -> None
-        | true ->
-            let state = CounterSpec.next_state x state in
-            go_seq state xs)
-  in
-  let rec go_par state p0 p1 =
-    match (p0, p1) with
-    | [], [] -> true
-    | pg, [] | [], pg -> Option.is_some (go_seq state pg)
-    | x :: xs, y :: ys ->
-        CounterSpec.precond x state && CounterSpec.precond y state
-        && go_par (CounterSpec.next_state x state) xs (y :: ys)
-        && go_par (CounterSpec.next_state y state) (x :: xs) ys
-  in
-  match go_seq CounterSpec.init_state seq with
-  | None -> false
-  | Some spawn_state -> go_par spawn_state p0 p1
+let test_smart = Test.make
+                   ~name:"Statistics on concurrent suffixes' length with smart generators"
+                   ~count:1000
+                   (Counter.arb_cmds_par_smart 20 10)
+                   prop
 
-  let test = Test.make ~name:"Test output repects preconditions" ~count:1000 (Counter.arb_cmds_par_smart 20 12) prop
- let _ = QCheck_runner.run_tests ~verbose:true [ test ]
+let test_ordinary = Test.make
+                      ~name:"Statistics on concurrent suffixes' length with ordinary generators"
+                      ~count:1000
+                      (Counter.arb_cmds_par 20 10)
+                      prop
 
-end
+let _ =
+  let arg = Sys.argv.(1) in
+  match arg with
+  | "smart" -> QCheck_runner.run_tests ~verbose:false [ test_smart ]
+  | "ordinary" -> QCheck_runner.run_tests ~verbose:false [ test_ordinary ]
+  | s -> raise (Invalid_argument s)

@@ -85,6 +85,7 @@ module Make(Spec : StmSpec) (*: StmTest *)
     val gen_cmds_size : Spec.state -> int Gen.t -> Spec.cmd list Gen.t
   (*val shrink_triple : ...*)
     val arb_cmds_par : int -> int -> (Spec.cmd list * Spec.cmd list * Spec.cmd list) arbitrary
+    val arb_cmds_par_smart : int -> int -> (Spec.cmd list * Spec.cmd list * Spec.cmd list) arbitrary
     val agree_prop_par         : (Spec.cmd list * Spec.cmd list * Spec.cmd list) -> bool
     val agree_test_par         : count:int -> name:string -> Test.t
     val agree_test_par_smart   : count:int -> name:string -> Test.t
@@ -264,7 +265,7 @@ struct
         let open Gen in
         g >>= fun c -> if p c then return (Some c) else aux (fuel - 1)
     in
-    aux 10 (* XXX todo: find a good value for the fuel here *)
+    aux 2 (* XXX todo: find a good value for the fuel here *)
 
   let next_cmd (p : Spec.cmd -> bool) : Spec.cmd option Gen.t =
     (* maybe if the [oneof] is in specialize the result would be better *)
@@ -343,7 +344,7 @@ struct
   let gen_pg seq_len par_len =
     let open Gen in
     gen_seq seq_len >>= fun pref ->
-    run_pg Spec.init_state pref |> gen_par par_len >>= fun (p0, p1) ->
+    run_pg Spec.init_state pref |> gen_par (par_len * 2) >>= fun (p0, p1) ->
     triple (return pref) (return p0) (return p1)
 
   let print_pg : (Spec.cmd list * Spec.cmd list * Spec.cmd list) Print.t option
@@ -362,7 +363,8 @@ struct
     | None -> QCheck.make (gen_pg seq_len par_len)
     | Some print -> QCheck.make ~print (gen_pg seq_len par_len)
   end
-  open SmartGen
+
+  let arb_cmds_par_smart = SmartGen.arb_cmds_par_smart
   
   (* Parallel agreement property based on [Domain] *)
   let agree_prop_par =

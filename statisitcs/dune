@@ -1,0 +1,23 @@
+(executable
+ (name length)
+  (modules length)
+  (libraries qcheck multicorecheck.stm)
+ (preprocess (pps ppx_deriving.show ppx_deriving.eq)))
+
+(executable
+ (name ratio)
+  (modules ratio)
+  (libraries qcheck multicorecheck.stm)
+ (preprocess (pps ppx_deriving.show ppx_deriving.eq)))
+
+(executable
+ (name thousand)
+  (modules thousand)
+  (libraries qcheck multicorecheck.stm)
+ (preprocess (pps ppx_deriving.show ppx_deriving.eq)))
+
+(executable
+ (name correction)
+  (modules correction)
+  (libraries qcheck multicorecheck.stm)
+ (preprocess (pps ppx_deriving.show ppx_deriving.eq)))

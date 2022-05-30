@@ -43,7 +43,6 @@ module CounterSpec = struct
   type res =
     | RAdd | RRead of int | RSub [@@deriving show { with_path = false }]
 
-
   let run cmd sut =
     match cmd with
     | Add i -> sut := !sut + i; RAdd
@@ -89,7 +88,32 @@ module TestCorrectness = struct
   | None -> false
   | Some spawn_state -> go_par spawn_state p0 p1
 
-  let test = Test.make ~name:"Test output repects preconditions" ~count:1000 (Counter.arb_cmds_par_smart 20 12) prop
- let _ = QCheck_runner.run_tests ~verbose:true [ test ]
+  let count cpt pg =
+    try
+      if not (prop pg) then incr cpt;
+      true
+    with
+      _ -> incr cpt; true
 
+  let smart = ref 0
+  let ordinary = ref 0
+  let prop_smart = count smart
+  let prop_ordinary = count ordinary
+  
+  let test_smart = Test.make
+                     ~name:"Test output repects preconditions smart generator"
+                     ~count:1000
+                     (Counter.arb_cmds_par_smart 20 12)
+                     prop_smart
+  
+  let test_ordinary = Test.make
+                        ~name:"Test output repects preconditions ordinary generator"
+                        ~count:1000
+                        (Counter.arb_cmds_par 20 12)
+                        prop_ordinary
+  
+ let _ = QCheck_runner.run_tests ~verbose:true [ test_smart; test_ordinary ]
+
+ let _ = Printf.printf "smart generator:     %i / 1000\n%!" (!smart)
+ let _ = Printf.printf "ordinary generator:  %i / 1000\n%!" (!ordinary)
 end

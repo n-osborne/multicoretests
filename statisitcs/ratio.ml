@@ -46,9 +46,9 @@ module CounterSpec = struct
 
   let run cmd sut =
     match cmd with
-    | Add i -> sut := !sut + i; RAdd
+    | Add i -> if !sut + i > max then raise Exit; sut := !sut + i; RAdd
     | Read -> RRead (!sut)
-    | Sub i -> sut := !sut - i; RSub
+    | Sub i -> if !sut - i < 0 then raise Exit; sut := !sut - i; RSub
 
   let postcond c s res = match c,res with
     | Add _, RAdd -> true
@@ -64,32 +64,31 @@ module CounterSpec = struct
 
 module Counter = STM.Make (CounterSpec)
 
-module TestCorrectness = struct
+let count cpt pg =
+  try
+    let res = Util.repeat 100 Counter.agree_prop_par pg in
+    if not res then incr cpt;
+    true
+  with
+    _ -> incr cpt; true
 
-  let prop (seq, p0, p1) =
-      let rec go_seq state = function
-    | [] -> Some state
-    | x :: xs -> (
-        match CounterSpec.precond x state with
-        | false -> None
-        | true ->
-            let state = CounterSpec.next_state x state in
-            go_seq state xs)
-  in
-  let rec go_par state p0 p1 =
-    match (p0, p1) with
-    | [], [] -> true
-    | pg, [] | [], pg -> Option.is_some (go_seq state pg)
-    | x :: xs, y :: ys ->
-        CounterSpec.precond x state && CounterSpec.precond y state
-        && go_par (CounterSpec.next_state x state) xs (y :: ys)
-        && go_par (CounterSpec.next_state y state) (x :: xs) ys
-  in
-  match go_seq CounterSpec.init_state seq with
-  | None -> false
-  | Some spawn_state -> go_par spawn_state p0 p1
+let smart         = ref 0
+let ordinary      = ref 0
+let prop_smart    = count smart
+let prop_ordinary = count ordinary
 
-  let test = Test.make ~name:"Test output repects preconditions" ~count:1000 (Counter.arb_cmds_par_smart 20 12) prop
- let _ = QCheck_runner.run_tests ~verbose:true [ test ]
-
-end
+let test_smart = Test.make
+                   ~name:"Statistics on buggy programs over 10000 with smart generator"
+                   ~count:10000
+                   (Counter.arb_cmds_par_smart 20 10)
+                   prop_smart
+    
+let test_ordinary = Test.make
+                   ~name:"Statistics on buggy programs over 10000 with ordinary generator"
+                   ~count:10000
+                   (Counter.arb_cmds_par 20 10)
+                   prop_ordinary
+  
+let _ = QCheck_runner.run_tests ~verbose:false [ test_smart; test_ordinary ]
+let _ = Printf.printf "smart generator:   %i / 10_000\n%!" (!smart)
+let _ = Printf.printf "ordinay generator: %i / 10_000\n%!" (!ordinary)
