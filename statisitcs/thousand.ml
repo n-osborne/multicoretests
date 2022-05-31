@@ -64,19 +64,20 @@ module CounterSpec = struct
 
 module Counter = STM.Make (CounterSpec)
 
-let prop _ = true
+let prop hyp pg = assume (hyp pg); true
 
 let test_smart = Test.make
-                   ~name:"Statistics on concurrent suffixes' length with smart generators"
+                   ~name:"Generate a thousand of valid programs with smart generators"
                    ~count:1000
                    (Counter.arb_cmds_par_smart 20 10)
-                   prop
+                   (prop (fun _ -> true))
 
 let test_ordinary = Test.make
-                      ~name:"Statistics on concurrent suffixes' length with ordinary generators"
+                      ~name:"Generate a thousand of valid programs with ordinary generators"
                       ~count:1000
+                      ~max_gen:3000
                       (Counter.arb_cmds_par 20 10)
-                      prop
+                      (prop (fun (pref,p0,p1) -> Counter.all_interleavings_ok pref p0 p1 CounterSpec.init_state))
 
 let _ =
   let arg = Sys.argv.(1) in

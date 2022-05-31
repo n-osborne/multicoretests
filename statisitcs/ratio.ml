@@ -90,5 +90,5 @@ let test_ordinary = Test.make
                    prop_ordinary
   
 let _ = QCheck_runner.run_tests ~verbose:false [ test_smart; test_ordinary ]
-let _ = Printf.printf "smart generator:   %i / 10_000\n%!" (!smart)
-let _ = Printf.printf "ordinay generator: %i / 10_000\n%!" (!ordinary)
+let _ = Printf.printf "Buggy programs with smart generator:   %i / 10_000\n%!" (!smart)
+let _ = Printf.printf "Buggy programs with ordinay generator: %i / 10_000\n%!" (!ordinary)

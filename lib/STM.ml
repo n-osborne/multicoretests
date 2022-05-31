@@ -86,6 +86,7 @@ module Make(Spec : StmSpec) (*: StmTest *)
   (*val shrink_triple : ...*)
     val arb_cmds_par : int -> int -> (Spec.cmd list * Spec.cmd list * Spec.cmd list) arbitrary
     val arb_cmds_par_smart : int -> int -> (Spec.cmd list * Spec.cmd list * Spec.cmd list) arbitrary
+    val all_interleavings_ok   : Spec.cmd list -> Spec.cmd list -> Spec.cmd list -> Spec.state -> bool 
     val agree_prop_par         : (Spec.cmd list * Spec.cmd list * Spec.cmd list) -> bool
     val agree_test_par         : count:int -> name:string -> Test.t
     val agree_test_par_smart   : count:int -> name:string -> Test.t
