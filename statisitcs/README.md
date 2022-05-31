@@ -46,3 +46,35 @@ Summary
   'dune exec -- ./thousand.exe ordinary' ran
    18.30 ± 1.80 times faster than 'dune exec -- ./thousand.exe smart'
 ```
+
+## Bug finding
+
+As the tested interface is clearly not thread-safe, bugs are easily found in both settings:
+
+```bash
+$ dune exec ./ratio.exe
+random seed: 433221710
+================================================================================
+success (ran 2 tests)
+Buggy programs with smart generator:   8242 / 10_000
+Buggy programs with ordinay generator: 7894 / 10_000
+```
+
+## Concurrent suffixes length
+
+As the smart strategy choose to return a pair of smaller than expected lists of commands
+rather than starting over, there is a risk of generating only small programs.
+
+We measure the length of the generated concurrent suffixes in `length.ml` and have
+the following result:
+
+```
+length:    0|  1|  2|  3|  4|  5|  6|  7|  8|  9| 10| 12| 13| 14| 15| 16| 17| 18| 19| 20| 21
+------------+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+----
+smart:    33| 44| 30| 25| 17| 24| 20| 17| 18| 20| 23| 16| 15| 16| 26| 20| 19| 23| 15| 21| 558
+ordinary:  0|  0| 41| 53| 57| 52| 60| 44| 59| 56| 49| 55| 52| 59| 58| 50| 55| 47| 50| 46| 57
+```
+
+As the ordinary generator pick a list length between `2` and the given value, the repartition
+is homogeneous. With the smart strategy, we have more longer lists of commands but we should find a way 
+to eliminate the irrelevant empty lists and singletons.
