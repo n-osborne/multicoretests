@@ -1,80 +1,146 @@
 # Statistics about program generators
 
-## Smart generator vs ordinary one
+This is a comparison between ordinary program generators and custom
+program generators.  When generating test inputs for `STM` (and `Lin`
+for that matter), we generate a triplet of list of commands: a
+sequential prefix and two concurrent processes. If commands in the
+tested API have some preconditions, we want to avoid generating test
+inputs that behave badly because of the no respect of these
+preconditions.
 
-The smart generator build the two concurrent suffixes maintaining the correction
-precondition-wise for all interleaving. That means checking checking for two things
-before adding a command at the end of a process:
+Preconditions are expressed by predicates over a state, a state being
+a functional model of the system under test.
 
-- the commands preconditions will be respected whatever the interleaving of the previous ones
-- whenever the command is run (at the end of the process it is added to) it won't break the preconditions of the remaining commands of the other process.
+In a sequential setting, we can easily make the generator depends on
+the state, making it only generating sequences of commands that
+respect the command's precondtions at every step of the program. In a
+concurrent setting, the situation is a bit more delicate as we don't
+know a priori how the commands of the two concurrent suffixes will
+interleave.
 
-In order to add a new command, we need a general generator able to generate any command given in the `StmSpec`
-module. We pick one and check whether it is a valid command precondition-wise in the concurrent setting.
-If it is not, we try again. In order to avoid an infinite recursion, and also because checking
-for precondition validity in a concurrent setting is costly (factorial in the number of commands), we limit
-the number of retry (2 retries, so 3 attempts). When the number of attempts is exhausted, we stop
-the generation of the concurrent suffixes, returning shorter list of commands rather than failing.
+The ordinary generator takes on generate-and-filter approach,
+generating a triplet of list of commands and then checking whether the
+preconditions are repsected in all the possible interleavings.
 
-The ordinary generator use the same construction for the sequential prefix
-and the two concurrent suffixes relying on a generator depending on only one state.
-So this generator will generate test inputs that are not valid precondition-wise.
-These test inputs will then be filtered out at the moment of the test.
+In contrast, the custom generator aims at generating only triplets
+that represent a valid program precondition-wise.
 
-## Comparison of speed generating a thousand of valid test inputs
+So, the ordinary generator will generate a certain amount of programs
+that it will then throw away while the custom generator will spend
+more time generating only valid programs.
 
-In the `thousand.ml` program, we generate a thousand of programs that are valid precondition-wise
-with respectively the smart generator and the ordinary one. In order to have one thousand valid
-program with the ordinary generator we filter out the non valid one with the `QCheck.assume` function
-and raise the `~max_gen` argument of `Test.make` to `3000` (more that a half of the generated programs
-are thrown away.
+The overall result is that the custom generator is twice as much
+costly in time than the oridinary one and does not detect as much
+easily bugs.
 
-But as the precondition validity check is done only once per test input (and is quadratic rather than factorial)
-the generate-and-throw-away strategy still run faster than the smart one.
+**plan**
 
-```bash
-$ hyperfine "dune exec -- ./thousand.exe smart" "dune exec -- ./thousand.exe ordinary"
-Benchmark 1: dune exec -- ./thousand.exe smart
-  Time (mean ± σ):      3.980 s ±  0.144 s    [User: 3.941 s, System: 0.020 s]
-  Range (min … max):    3.683 s …  4.195 s    10 runs
 
-Benchmark 2: dune exec -- ./thousand.exe ordinary
-  Time (mean ± σ):     217.4 ms ±  19.9 ms    [User: 194.1 ms, System: 14.9 ms]
-  Range (min … max):   189.9 ms … 264.0 ms    13 runs
+In order to test and measure the behaviour of the two kinds of
+generator, we use the library `Domainslib.Chan`.
 
-Summary
-  'dune exec -- ./thousand.exe ordinary' ran
-   18.30 ± 1.80 times faster than 'dune exec -- ./thousand.exe smart'
-```
+## Length and commands distribution
 
-## Bug finding
+We want generators that are comparable, that is generators that ouptut
+the same kind of programs at least in term of length and in term of
+commands distribution.
 
-As the tested interface is clearly not thread-safe, bugs are easily found in both settings:
+After tweeking a bit the custom generator, we manage to have a relatively
+satisfying result.
+
+We have generated one thousand valid programs using both generators
+with a maximum length of the concurrent suffixes put at 10 and
+measured the sum of the length of the generated concurrent
+suffixes. This gives us the following graph:
+
+<div align="center">
+<img src="length.png" title="Number of generated programs of a given length.">
+</div>
+
+We can see that except for the smaller length, both generators have
+the same chance of generating a program of this length and that they
+both generate more smaller programs than bigger ones.
+
+With the same process, we have measured the repartition of the
+commands in the concurrent suffixes of the generated programs. Here
+again, the two generators behaves relatively the same. This gives us
+the following graph:
+
+<div align="center">
+<img src="distribution.png" title="Commands repartition in the generated programs.">
+</div>
+
+Here again, we can see that the commands' repartition is quite similar
+using these two generators.
+
+## Bug finding abilities
+
+Once we know that both generators will output some relatively similar
+input tests, we can wonder whether they behave the same with respect
+to bug finding abilities.
+
+In order to measure that, we use `QCheck` to test the property
+provided by `STM` with 10000 test inputs with a slight modification:
+the property that we test always returns `true` but, as a side effect,
+increment a counter each time the program is not linearizable
+according to `STM`. That way, the test process does not stop at the
+first founded bug and we are able to count the number of time we find
+a bug in the 10000 test inputs.
 
 ```bash
 $ dune exec ./ratio.exe
-random seed: 433221710
+random seed: 28744359
 ================================================================================
 success (ran 2 tests)
-Buggy programs with smart generator:   8242 / 10_000
-Buggy programs with ordinay generator: 7894 / 10_000
+Buggy programs with custom generator:  2729 / 10_000
+Buggy programs with ordinay generator: 4215 / 10_000
 ```
 
-## Concurrent suffixes length
+Here we can see that the the custom generator have lesser bug finding
+abilities than the ordinary one. At the present moment, we are not
+quite sure why.
 
-As the smart strategy choose to return a pair of smaller than expected lists of commands
-rather than starting over, there is a risk of generating only small programs.
+We then test for the statistical significance of this difference, and
+it seems that this is not a significant difference.
 
-We measure the length of the generated concurrent suffixes in `length.ml` and have
-the following result:
-
+```bash
+$ dune exec ../src/statistics/z_test.exe 2779 10000 4215 10000
+Entering directory '/home/nicolas/git/multicoretests'
+z-test of two proportions
+z = -nan
+Is |z| = |-nan| > z_alpha2 = 1.960000 ?
+No, failed to reject null hypothesis
 ```
-length:    0|  1|  2|  3|  4|  5|  6|  7|  8|  9| 10| 12| 13| 14| 15| 16| 17| 18| 19| 20| 21
-------------+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+---+----
-smart:    33| 44| 30| 25| 17| 24| 20| 17| 18| 20| 23| 16| 15| 16| 26| 20| 19| 23| 15| 21| 558
-ordinary:  0|  0| 41| 53| 57| 52| 60| 44| 59| 56| 49| 55| 52| 59| 58| 50| 55| 47| 50| 46| 57
-```
 
-As the ordinary generator pick a list length between `2` and the given value, the repartition
-is homogeneous. With the smart strategy, we have more longer lists of commands but we should find a way 
-to eliminate the irrelevant empty lists and singletons.
+## Speed
+
+Now, we want to determine whether the custom generator is cheaper in terms of
+time than the ordinary one that is generating a lot of inputs just to throw them away.
+
+To measure the time spent generating test inputs we make both generators
+generate one thousand valid programs with a maximum length of concurrent suffixes 
+put at 10. We then use `hyperfine` to benchmark these two generators.
+
+```bash
+$ hyperfine "dune exec -- ./thousand.exe ordinary" "dune exec -- ./thousand.exe custom"
+Benchmark 1: dune exec -- ./thousand.exe ordinary
+  Time (mean ± σ):     649.2 ms ±  71.9 ms    [User: 623.6 ms, System: 12.3 ms]
+  Range (min … max):   569.9 ms … 821.5 ms    10 runs
+
+Benchmark 2: dune exec -- ./thousand.exe custom
+  Time (mean ± σ):     996.9 ms ±  87.2 ms    [User: 970.4 ms, System: 10.9 ms]
+  Range (min … max):   886.0 ms … 1106.6 ms    10 runs
+
+Summary
+  'dune exec -- ./thousand.exe ordinary' ran
+    1.54 ± 0.22 times faster than 'dune exec -- ./thousand.exe custom'
+```
+We can see that the ordinary generator is still faster than the custom one.
+
+## What's next?
+
+- see if we can make the custom generator a bit faster by sparing some
+  `next_state` computation
+- measure the evolution of the difference in time with other length of
+  concurrent suffixes (as there is a difference in complexity, the
+  custom generator could end up faster with smaller programs)
