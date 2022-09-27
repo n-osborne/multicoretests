@@ -49,14 +49,49 @@ module Int = struct
   let of_int (i:int) : t = i
 end
 
-module CLT_int = STM.Make(CLConf(Int))
+(* module CLT_int = STM.Make(CLConf(Int)) *)
 module CLT_int64 = STM.Make(CLConf(Int64))
-;;
-Util.set_ci_printing ()
-;;
-QCheck_base_runner.run_tests_main
-  (let count = 1000 in
-   [CLT_int.agree_test       ~count ~name:"STM int CList test sequential";
-    CLT_int64.agree_test     ~count ~name:"STM int64 CList test sequential";
-    CLT_int.neg_agree_test_par   ~count ~name:"STM int CList test parallel";
-    CLT_int64.neg_agree_test_par ~count ~name:"STM int64 CList test parallel"])
+
+
+let relax_cpt = ref 0
+let semap_cpt = ref 0
+
+let mk_prop prop cpt pg =
+  try
+    let b = prop pg in
+    if not b
+    then cpt := 1 + !cpt;
+    true
+  with _ -> true
+
+let relax_prop = mk_prop CLT_int64.agree_prop_par relax_cpt
+let semap_prop = mk_prop CLT_int64.agree_prop_par_sema semap_cpt
+
+let mk_test prop ~count ~name =
+  let seq_len,par_len = 20,12 in
+  let max_gen = 3*count in
+  Test.make ~max_gen ~count ~name (CLT_int64.arb_cmds_par seq_len par_len) prop
+
+let relax_test = mk_test relax_prop
+let semap_test = mk_test semap_prop
+
+let count = 10000
+
+let _ = QCheck_base_runner.run_tests ~verbose:true
+   [ relax_test ~count ~name:"STM int64 CList with cpu_relax";
+     semap_test ~count ~name:"STM int64 CList with semaphore"
+   ]
+
+let () =
+  Printf.printf "relax : %i / %i\nsemap : %i / %i\n" !relax_cpt count !semap_cpt count
+
+
+(* ;; *)
+(* Util.set_ci_printing () *)
+(* ;; *)
+(* QCheck_base_runner.run_tests_main *)
+(*   (let count = 1000 in *)
+(*    [CLT_int.agree_test       ~count ~name:"STM int CList test sequential"; *)
+(*     CLT_int64.agree_test     ~count ~name:"STM int64 CList test sequential"; *)
+(*     CLT_int.neg_agree_test_par   ~count ~name:"STM int CList test parallel"; *)
+(*     CLT_int64.neg_agree_test_par ~count ~name:"STM int64 CList test parallel"]) *)

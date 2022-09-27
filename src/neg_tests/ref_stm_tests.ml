@@ -137,20 +137,52 @@ end
 module RT_int   = STM.Make(RConf_int)
 module RT_int64 = STM.Make(RConf_int64)
 
-module RConf_int_GC = STM.AddGC(RConf_int)
-module RConf_int64_GC = STM.AddGC(RConf_int64)
+let relax_cpt = ref 0
+let semap_cpt = ref 0
 
-module RT_int_GC = STM.Make(RConf_int_GC)
-module RT_int64_GC = STM.Make(RConf_int64_GC)
-;;
-Util.set_ci_printing ()
-;;
-QCheck_base_runner.run_tests_main
-  (let count = 1000 in
-   [RT_int.agree_test            ~count ~name:"STM int ref test sequential";
-    RT_int.neg_agree_test_par    ~count ~name:"STM int ref test parallel";
-  (*RT_int_GC.neg_agree_test_par ~count ~name:"STM int ref test parallel (w/AddGC functor)";*)
-    RT_int.agree_test            ~count ~name:"STM int64 ref test sequential";
-    RT_int.neg_agree_test_par    ~count ~name:"STM int64 ref test parallel";
-  (*RT_int_GC.neg_agree_test_par ~count ~name:"STM int64 ref test parallel (w/AddGC functor)";*)
-   ])
+let mk_prop prop cpt pg =
+  try
+    if not (prop pg)
+    then incr cpt;
+    true
+  with _ -> true
+
+let relax_prop = mk_prop RT_int64.agree_prop_par relax_cpt
+let semap_prop = mk_prop RT_int64.agree_prop_par_sema semap_cpt
+
+let mk_test prop ~count ~name =
+  let rep_count = 25 in
+  let seq_len,par_len = 20,12 in
+  let max_gen = 3*count in
+  Test.make ~max_gen ~count ~name (RT_int64.arb_cmds_par seq_len par_len) (repeat rep_count prop)
+
+let relax_test = mk_test relax_prop
+let semap_test = mk_test semap_prop
+
+let count = 10000
+
+let _ = QCheck_base_runner.run_tests ~verbose:true
+   [ relax_test ~count ~name:"STM int64 ref with cpu_relax";
+     semap_test ~count ~name:"STM int64 ref with semaphore"
+   ]
+
+let () =
+  Printf.printf "relax : %i / %i\nsemap : %i / %i\n" !relax_cpt count !semap_cpt count
+
+(* module RConf_int_GC = STM.AddGC(RConf_int) *)
+(* module RConf_int64_GC = STM.AddGC(RConf_int64) *)
+
+(* module RT_int_GC = STM.Make(RConf_int_GC) *)
+(* module RT_int64_GC = STM.Make(RConf_int64_GC) *)
+(* ;; *)
+(* Util.set_ci_printing () *)
+(* ;; *)
+(* QCheck_base_runner.run_tests_main *)
+(*   (let count = 1000 in *)
+(*    [RT_int.agree_test            ~count ~name:"STM int ref test sequential"; *)
+(*     RT_int.neg_agree_test_par    ~count ~name:"STM int ref test parallel"; *)
+(*   (\*RT_int_GC.neg_agree_test_par ~count ~name:"STM int ref test parallel (w/AddGC functor)";*\) *)
+(*     RT_int.agree_test            ~count ~name:"STM int64 ref test sequential"; *)
+(*     RT_int.neg_agree_test_par    ~count ~name:"STM int64 ref test parallel"; *)
+(*   (\*RT_int_GC.neg_agree_test_par ~count ~name:"STM int64 ref test parallel (w/AddGC functor)";*\) *)
+(*    ]) *)

@@ -128,6 +128,7 @@ module Make(Spec : StmSpec)
     val shrink_triple : (Spec.cmd list * Spec.cmd list * Spec.cmd list) Shrink.t
     val arb_cmds_par : int -> int -> (Spec.cmd list * Spec.cmd list * Spec.cmd list) arbitrary
     val agree_prop_par         : (Spec.cmd list * Spec.cmd list * Spec.cmd list) -> bool
+    val agree_prop_par_sema    : (Spec.cmd list * Spec.cmd list * Spec.cmd list) -> bool
     val agree_test_par         : count:int -> name:string -> Test.t
     val neg_agree_test_par     : count:int -> name:string -> Test.t
 end
@@ -375,6 +376,25 @@ struct
     let wait = Atomic.make true in
     let dom1 = Domain.spawn (fun () -> while Atomic.get wait do Domain.cpu_relax() done; try Ok (interp_sut_res sut cmds1) with exn -> Error exn) in
     let dom2 = Domain.spawn (fun () -> Atomic.set wait false; try Ok (interp_sut_res sut cmds2) with exn -> Error exn) in
+    let obs1 = Domain.join dom1 in
+    let obs2 = Domain.join dom2 in
+    let obs1 = match obs1 with Ok v -> v | Error exn -> raise exn in
+    let obs2 = match obs2 with Ok v -> v | Error exn -> raise exn in
+    let ()   = Spec.cleanup sut in
+    check_obs pref_obs obs1 obs2 Spec.init_state
+      || Test.fail_reportf "  Results incompatible with linearized model\n\n%s"
+         @@ print_triple_vertical ~fig_indent:5 ~res_width:35
+           (fun (c,r) -> Printf.sprintf "%s : %s" (Spec.show_cmd c) (show_res r))
+           (pref_obs,obs1,obs2)
+
+  (* Parallel agreement property based on [Domain] *)
+  let agree_prop_par_sema (seq_pref,cmds1,cmds2) =
+    assume (all_interleavings_ok seq_pref cmds1 cmds2 Spec.init_state);
+    let sut = Spec.init_sut () in
+    let pref_obs = interp_sut_res sut seq_pref in
+    let sema = Semaphore.Binary.make false in
+    let dom1 = Domain.spawn (fun () -> Semaphore.Binary.release sema; try Ok (interp_sut_res sut cmds1) with exn -> Error exn) in
+    let dom2 = Domain.spawn (fun () -> while not (Semaphore.Binary.try_acquire sema) do Domain.cpu_relax() done; try Ok (interp_sut_res sut cmds2) with exn -> Error exn) in
     let obs1 = Domain.join dom1 in
     let obs2 = Domain.join dom2 in
     let obs1 = match obs1 with Ok v -> v | Error exn -> raise exn in
